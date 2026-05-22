@@ -22,9 +22,6 @@ stdenv.mkDerivation (attr: {
   installPhase = ''
     OUT_DIR="$src/opt/OpenFOAM-${openfoam-unwrapped.version}"
 
-    ls -lh "$OUT_DIR"
-    ls -lh "$OUT_DIR/platforms/linux64GccDPInt32Opt/bin"
-
     wrapDir() {
       local dir="$1"
 

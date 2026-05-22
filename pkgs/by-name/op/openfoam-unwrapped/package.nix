@@ -12,6 +12,8 @@
   fftw,
   flex,
   openmpi,
+  scotch,
+  symlinkJoin,
 }:
 
 stdenv.mkDerivation (attr: {
@@ -49,8 +51,23 @@ stdenv.mkDerivation (attr: {
     openmpi.dev
   ];
 
-  postPatch = ''
+  postPatch = let
+    scotchCombined = symlinkJoin {
+      name = "scotch-combined";
+      paths = [ scotch.dev scotch.out ];
+    };
+  in ''
     patchShebangs .
+
+    substituteInPlace source/etc/config.sh/scotch \
+      --replace-fail \
+        'SCOTCH_VERSION=scotch_6.1.0' \
+        'export SCOTCH_VERSION=scotch-system' \
+      --replace-fail \
+        'export SCOTCH_ARCH_PATH=$WM_THIRD_PARTY_DIR/platforms/$WM_ARCH$WM_COMPILER$WM_PRECISION_OPTION$WM_LABEL_OPTION/$SCOTCH_VERSION' \
+        'export SCOTCH_ARCH_PATH=${scotchCombined}'
+
+    cat source/etc/config.sh/scotch
 
     export HOME="$PWD/builddir"
 
