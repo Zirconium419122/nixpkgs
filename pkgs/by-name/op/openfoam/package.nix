@@ -2,7 +2,6 @@
   lib,
   stdenv,
   openfoam-unwrapped,
-  bash,
   flex,
   gnumake,
   openmpi,
@@ -14,6 +13,10 @@ stdenv.mkDerivation (attr: {
   name = "OpenFOAM";
 
   src = openfoam-unwrapped;
+
+  buildInputs = [
+    openmpi
+  ];
 
   nativeBuildInputs = [
     makeWrapper
@@ -43,8 +46,6 @@ stdenv.mkDerivation (attr: {
             ]}:$PATH'
 
             source '$OUT_DIR/etc/bashrc'
-
-            export MPI_ARCH_PATH='${openmpi}'
           "
       done
     }

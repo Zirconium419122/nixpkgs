@@ -56,18 +56,29 @@ stdenv.mkDerivation (attr: {
       name = "scotch-combined";
       paths = [ scotch.dev scotch.out ];
     };
+
+    fftwCombined = symlinkJoin {
+      name = "fftw-combined";
+      paths = [ fftw.dev fftw.out ];
+    };
   in ''
     patchShebangs .
 
     substituteInPlace source/etc/config.sh/scotch \
       --replace-fail \
         'SCOTCH_VERSION=scotch_6.1.0' \
-        'export SCOTCH_VERSION=scotch-system' \
+        'SCOTCH_VERSION=scotch-system' \
       --replace-fail \
         'export SCOTCH_ARCH_PATH=$WM_THIRD_PARTY_DIR/platforms/$WM_ARCH$WM_COMPILER$WM_PRECISION_OPTION$WM_LABEL_OPTION/$SCOTCH_VERSION' \
         'export SCOTCH_ARCH_PATH=${scotchCombined}'
 
-    cat source/etc/config.sh/scotch
+    substituteInPlace source/etc/config.sh/FFTW \
+      --replace-fail \
+        'fftw_version=fftw-3.3.10' \
+        'fftw_version=fftw-system' \
+      --replace-fail \
+        'export FFTW_ARCH_PATH=$WM_THIRD_PARTY_DIR/platforms/$WM_ARCH$WM_COMPILER/$fftw_version' \
+        'export FFTW_ARCH_PATH=${fftwCombined}'
 
     export HOME="$PWD/builddir"
 
