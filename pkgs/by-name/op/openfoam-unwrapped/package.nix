@@ -114,9 +114,9 @@ stdenv.mkDerivation (attr: {
   '';
 
   meta = {
-    description = "It takes 30 minutes to compile...";
+    description = "OpenFOAM is an open-source CFD toolkit for solving fluid flow, turbulence, heat transfer, chemical reactions, and multiphysics problems";
     homepage = "https://openfoam.com";
-    license = lib.licenses.gpl3;
+    license = lib.licenses.gpl3Plus;
     maintainers = with lib.maintainers; [ Zirconium419122 ];
     platforms = with lib.platforms; unix;
   };

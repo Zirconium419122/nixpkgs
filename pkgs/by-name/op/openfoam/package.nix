@@ -10,7 +10,8 @@
 }:
 
 stdenv.mkDerivation (attr: {
-  name = "OpenFOAM";
+  pname = "openfoam";
+  version = openfoam-unwrapped.version;
 
   src = openfoam-unwrapped;
 
@@ -55,4 +56,6 @@ stdenv.mkDerivation (attr: {
     wrapDir "$OUT_DIR/bin"
     wrapDir "$OUT_DIR/platforms/linux64GccDPInt32Opt/bin"
   '';
+
+  meta = openfoam-unwrapped.meta;
 })
