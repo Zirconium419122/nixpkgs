@@ -3,7 +3,6 @@
   stdenv,
   openfoam-unwrapped,
   flex,
-  gnumake,
   openmpi,
   paraview,
   makeWrapper,
@@ -13,7 +12,7 @@ stdenv.mkDerivation (attr: {
   pname = "openfoam";
   version = openfoam-unwrapped.version;
 
-  src = openfoam-unwrapped;
+  dontUnpack = true;
 
   buildInputs = [
     openmpi
@@ -24,25 +23,24 @@ stdenv.mkDerivation (attr: {
   ];
 
   installPhase = ''
-    OUT_DIR="$src/opt/OpenFOAM-${openfoam-unwrapped.version}"
+    OUT_DIR="${openfoam-unwrapped}/opt/OpenFOAM-${openfoam-unwrapped.version}"
 
     wrapDir() {
       local dir="$1"
 
-      for p in "$dir"/*; do
-        [ -f "$p" ] || continue
-        [ -x "$p" ] || continue
+      for f in "$dir"/*; do
+        [ -f "$f" ] || continue
+        [ -x "$f" ] || continue
 
         local name
-        name="$(basename "$p")"
+        name="$(basename "$f")"
 
-        makeWrapper "$p" "$out/bin/$name" \
+        makeWrapper "$f" "$out/bin/$name" \
           --run "
             set +eu
 
             export PATH='${lib.makeBinPath [
               flex
-              gnumake
               paraview
             ]}:$PATH'
 

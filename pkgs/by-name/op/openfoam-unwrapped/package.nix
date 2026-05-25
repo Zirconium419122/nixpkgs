@@ -51,7 +51,7 @@ stdenv.mkDerivation (attr: {
     openmpi.dev
   ];
 
-  postPatch = let
+  patchPhase = let
     scotchCombined = symlinkJoin {
       name = "scotch-combined";
       paths = [ scotch.dev scotch.out ];
@@ -62,6 +62,8 @@ stdenv.mkDerivation (attr: {
       paths = [ fftw.dev fftw.out ];
     };
   in ''
+    runHook prePatch
+
     patchShebangs .
 
     substituteInPlace source/etc/config.sh/scotch \
@@ -80,12 +82,14 @@ stdenv.mkDerivation (attr: {
         'export FFTW_ARCH_PATH=$WM_THIRD_PARTY_DIR/platforms/$WM_ARCH$WM_COMPILER/$fftw_version' \
         'export FFTW_ARCH_PATH=${fftwCombined}'
 
-    export HOME="$PWD/builddir"
+    export HOME="$PWD/builduser"
 
     mkdir -p "$HOME/OpenFOAM"
     mkdir -p "$HOME/.OpenFOAM"
 
     mv source "$HOME/OpenFOAM/OpenFOAM-${attr.version}"
+
+    runHook postPatch
   '';
 
   buildPhase = ''
