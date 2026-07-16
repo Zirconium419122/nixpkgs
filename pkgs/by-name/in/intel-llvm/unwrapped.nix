@@ -153,36 +153,50 @@ stdenv.mkDerivation (finalAttrs: {
     ./sycl-jit-exclude-cmake-files.patch
   ];
 
-  postPatch = ''
-    # Parts of libdevice are built using the freshly-built compiler.
-    # As it tries to link to system libraries, we need to wrap it with the
-    # usual nix cc-wrapper.
-    # Since the compiler to be wrapped is not available at this point,
-    # we use a stub that points to where it will be later on
-    # in `$NIX_BUILD_TOP/source/build/bin/clang-${llvmMajorVersion}`
-    substituteInPlace libdevice/cmake/modules/SYCLLibdevice.cmake \
-      --replace-fail "\''${clang_exe}" "${ccWrapperStub}/bin/clang++"
+  postPatch =
+    let
+      gccCxxInclude = "${lib.getBin stdenv.cc.cc}/include/c++/${lib.getVersion stdenv.cc.cc}";
+      gccCxxIncludeTriple = "${gccCxxInclude}/${stdenv.targetPlatform.config}";
+    in
+    ''
+      # Parts of libdevice are built using the freshly-built compiler.
+      # As it tries to link to system libraries, we need to wrap it with the
+      # usual nix cc-wrapper.
+      # Since the compiler to be wrapped is not available at this point,
+      # we use a stub that points to where it will be later on
+      # in `$NIX_BUILD_TOP/source/build/bin/clang-${llvmMajorVersion}`
+      substituteInPlace libdevice/cmake/modules/SYCLLibdevice.cmake \
+        --replace-fail "\''${clang_exe}" "${ccWrapperStub}/bin/clang++"
 
-    # When running without this, their CMake code copies files from the Nix store.
-    # As the Nix store is read-only and COPY copies permissions by default,
-    # this will lead to the copied files also being read-only.
-    # As CMake at a later point wants to write into copied folders, this causes
-    # the build to fail with a (rather cryptic) permission error.
-    # By setting NO_SOURCE_PERMISSIONS we side-step this issue.
-    # Note in case of future build failures: if there are executables in any of the copied folders,
-    # we may need to add special handling to set the executable permissions.
-    # See also: https://github.com/intel/llvm/issues/19635#issuecomment-3134830708
-    sed -i '/file(COPY / { /NO_SOURCE_PERMISSIONS/! s/)\s*$/ NO_SOURCE_PERMISSIONS)/ }' \
-      unified-runtime/cmake/FetchLevelZero.cmake \
-      sycl/CMakeLists.txt \
-      sycl/cmake/modules/FetchEmhash.cmake
+      # Add C++ standard library include path for libdevice device-only compilation.
+      # The SYCL device toolchain does not forward -isystem or --gcc-install-dir
+      # flags from the cc-wrapper to the device cc1 invocation, so <cstdint> etc.
+      # are not found. Adding -cxx-isystem directly to compile_opts solves this.
+      sed -i \
+        -e '/^  --target=\''${LLVM_HOST_TRIPLE}/a\  -cxx-isystem ${gccCxxIncludeTriple}' \
+        -e '/^  --target=\''${LLVM_HOST_TRIPLE}/a\  -cxx-isystem ${gccCxxInclude}' \
+        libdevice/cmake/modules/SYCLLibdevice.cmake
 
-    # `NO_CMAKE_PACKAGE_REGISTRY` prevents it from finding OpenCL, so we unset it
-    # Note that this cmake file is imported in various places, not just unified-runtime
-    # See also: https://github.com/intel/llvm/issues/19635#issuecomment-3247008981
-    substituteInPlace unified-runtime/cmake/FetchOpenCL.cmake \
-        --replace-fail "NO_CMAKE_PACKAGE_REGISTRY" ""
-  '';
+      # When running without this, their CMake code copies files from the Nix store.
+      # As the Nix store is read-only and COPY copies permissions by default,
+      # this will lead to the copied files also being read-only.
+      # As CMake at a later point wants to write into copied folders, this causes
+      # the build to fail with a (rather cryptic) permission error.
+      # By setting NO_SOURCE_PERMISSIONS we side-step this issue.
+      # Note in case of future build failures: if there are executables in any of the copied folders,
+      # we may need to add special handling to set the executable permissions.
+      # See also: https://github.com/intel/llvm/issues/19635#issuecomment-3134830708
+      sed -i '/file(COPY / { /NO_SOURCE_PERMISSIONS/! s/)\s*$/ NO_SOURCE_PERMISSIONS)/ }' \
+        unified-runtime/cmake/FetchLevelZero.cmake \
+        sycl/CMakeLists.txt \
+        sycl/cmake/modules/FetchEmhash.cmake
+
+      # `NO_CMAKE_PACKAGE_REGISTRY` prevents it from finding OpenCL, so we unset it
+      # Note that this cmake file is imported in various places, not just unified-runtime
+      # See also: https://github.com/intel/llvm/issues/19635#issuecomment-3247008981
+      substituteInPlace unified-runtime/cmake/FetchOpenCL.cmake \
+          --replace-fail "NO_CMAKE_PACKAGE_REGISTRY" ""
+    '';
 
   preConfigure = ''
     flags=$(python buildbot/configure.py \
