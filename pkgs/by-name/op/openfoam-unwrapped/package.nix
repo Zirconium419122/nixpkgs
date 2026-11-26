@@ -71,6 +71,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   ${if stdenv.hostPlatform.isDarwin then "prePatch" else null} = ''
     patch -d source -p1 < ${./darwin-include-paths.patch}
+    patch -d source -p1 < ${./darwin-addr2line-target.patch}
   '';
 
   patchPhase =
