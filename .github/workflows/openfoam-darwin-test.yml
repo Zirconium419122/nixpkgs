@@ -1,0 +1,38 @@
+name: Test OpenFOAM on macOS
+
+on:
+  push:
+    branches: [openfoam-darwin-test]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      NIXPKGS_ALLOW_BROKEN: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v32
+
+      - name: Check the Nix build filesystem
+        run: |
+          probe=$(nix-build --no-out-link --expr '
+            let pkgs = import ./. {}; in
+            pkgs.runCommand "openfoam-build-filesystem" {} "
+              touch OpenFOAMProbe
+              if test -e openfoamprobe; then
+                echo case-insensitive > $out
+              else
+                echo case-sensitive > $out
+              fi
+            "
+          ')
+          echo "Nix build filesystem: $(cat "$probe")"
+
+      - name: Build and test OpenFOAM
+        run: |
+          nix-build . --no-out-link \
+            -A openfoam \
+            -A openfoam-unwrapped.tests.foamInstallation
