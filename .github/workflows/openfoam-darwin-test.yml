@@ -32,7 +32,7 @@ jobs:
           echo "Nix build filesystem: $(cat "$probe")"
 
       - name: Build and test OpenFOAM
-        run: |
-          nix-build . --no-out-link \
-            -A openfoam \
-            -A openfoam-unwrapped.tests.foamInstallation
+        run: nix-build . --no-out-link -A openfoam-unwrapped.tests.foamInstallation
+
+      - name: Build the OpenFOAM wrapper with ParaView
+        run: nix-build . --no-out-link -A openfoam
