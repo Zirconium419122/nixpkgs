@@ -1,0 +1,43 @@
+diff --git a/wmake/rules/darwin64Clang/general b/wmake/rules/darwin64Clang/general
+--- a/wmake/rules/darwin64Clang/general
++++ b/wmake/rules/darwin64Clang/general
+@@ -3,6 +3,11 @@ CPP        = cpp -traditional-cpp $(GFLAGS)
+ include $(GENERAL_RULES)/standard
+ ## include $(GENERAL_RULES)/Clang/openmp
+-
++
++# On case-insensitive filesystems, OpenFOAM headers such as string.H can
++# shadow system headers. wmkdepend still consumes the original -I options.
++DARWIN_COMPILER_INCLUDES = -iquote. $(patsubst -I%lnInclude,-iquote%lnInclude,\
++    $(filter-out -iquote.,$(LIB_HEADER_DIRS)))
++
+ # Darwin-specific
+ # ----
+ COMP_OPENMP = -Xpreprocessor -fopenmp
+diff --git a/wmake/rules/darwin64Clang/c b/wmake/rules/darwin64Clang/c
+--- a/wmake/rules/darwin64Clang/c
++++ b/wmake/rules/darwin64Clang/c
+@@ -14,8 +14,8 @@ endif
+ cFLAGS      = \
+     $(cARCH) $(GFLAGS) $(cWARN) $(cOPT) $(cDBUG) \
+-    $(FOAM_EXTRA_CFLAGS) $(LIB_HEADER_DIRS) -fPIC
+-
++    $(FOAM_EXTRA_CFLAGS) $(DARWIN_COMPILER_INCLUDES) -fPIC
++
+ ctoo        = $(WM_SCHEDULER) $(cc) $(cFLAGS) -c $< -o $@
+-
++
+ # MacOS linking
+ include $(ARCHITECTURE_RULES)/link-c
+diff --git a/wmake/rules/darwin64Clang/c++ b/wmake/rules/darwin64Clang/c++
+--- a/wmake/rules/darwin64Clang/c++
++++ b/wmake/rules/darwin64Clang/c++
+@@ -14,6 +14,6 @@ endif
+ c++FLAGS    = \
+     $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) \
+-    $(FOAM_EXTRA_CXXFLAGS) $(LIB_HEADER_DIRS) -fPIC
+-
++    $(FOAM_EXTRA_CXXFLAGS) $(DARWIN_COMPILER_INCLUDES) -fPIC
++
+ Ctoo        = $(WM_SCHEDULER) $(CC) $(c++FLAGS) -c $< -o $@
+ cctoo       = $(Ctoo)

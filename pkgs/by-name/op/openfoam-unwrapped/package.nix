@@ -2,6 +2,7 @@
   lib,
   stdenv,
   fetchFromGitLab,
+  fetchurl,
   cmake,
   cgal_5,
   zlib,
@@ -11,6 +12,7 @@
   fftw,
   flex,
   openmpi,
+  python3,
   scotch,
   symlinkJoin,
 }:
@@ -19,12 +21,20 @@ stdenv.mkDerivation (finalAttrs: {
   pname = "openfoam-unwrapped";
   version = "2512";
 
-  src = fetchFromGitLab {
-    owner = "OpenFOAM/core";
-    repo = "openfoam";
-    tag = "OpenFOAM-v${finalAttrs.version}";
-    hash = "sha256-uaXA0sFso6W+1jE2/2G0ckQlqRGnP/QBk0aHzP7xTWw=";
-  };
+  src =
+    if stdenv.hostPlatform.isDarwin then
+      fetchurl {
+        name = "OpenFOAM-v${finalAttrs.version}.tar.gz";
+        url = "https://gitlab.com/api/v4/projects/OpenFOAM%2Fcore%2Fopenfoam/repository/archive.tar.gz?sha=refs%2Ftags%2FOpenFOAM-v${finalAttrs.version}";
+        hash = "sha256-3aw9Tx5MvQPm3HKWsLLeauP04aMZ9I6bY+1e9ojLlTw=";
+      }
+    else
+      fetchFromGitLab {
+        owner = "OpenFOAM/core";
+        repo = "openfoam";
+        tag = "OpenFOAM-v${finalAttrs.version}";
+        hash = "sha256-uaXA0sFso6W+1jE2/2G0ckQlqRGnP/QBk0aHzP7xTWw=";
+      };
 
   sourceRoot = ".";
 
@@ -49,7 +59,19 @@ stdenv.mkDerivation (finalAttrs: {
     flex
     gnum4
     openmpi.dev
-  ];
+  ]
+  ++ lib.optional stdenv.hostPlatform.isDarwin python3;
+
+  # Rename colliding files before they can overwrite each other during unpack.
+  ${if stdenv.hostPlatform.isDarwin then "unpackPhase" else null} = ''
+    runHook preUnpack
+    python3 ${./unpack-darwin.py} "$src" source
+    runHook postUnpack
+  '';
+
+  ${if stdenv.hostPlatform.isDarwin then "prePatch" else null} = ''
+    patch -d source -p1 < ${./darwin-include-paths.patch}
+  '';
 
   patchPhase =
     let
@@ -188,5 +210,7 @@ stdenv.mkDerivation (finalAttrs: {
     license = lib.licenses.gpl3Plus;
     maintainers = with lib.maintainers; [ Zirconium419122 ];
     platforms = lib.platforms.all;
+    # The pathname and header fixes still need a native Darwin build.
+    broken = stdenv.hostPlatform.isDarwin;
   };
 })
