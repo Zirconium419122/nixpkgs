@@ -1,79 +1,16 @@
 import re
 import sys
 import tarfile
+from collections import defaultdict
 from pathlib import Path, PurePosixPath
 
 
-# wmake flattens these files into lnInclude, where both spellings must survive.
-# Keep the C++ type names and rename only files and references to their paths.
-extensions = {
-    "BasicChemistryModel": ("C", "H"),
-    "BasicChemistryModelI": ("H",),
-    "Barycentric": ("H",),
-    "Barycentric2D": ("H",),
-    "BarycentricTensor": ("H",),
-    "CombustionModel": ("C", "H"),
-    "CompactSpatialTensor": ("H",),
-    "CompressibleTurbulenceModel": ("C", "H"),
-    "DSMCCloud": ("H",),
-    "DSMCParcel": ("C", "H"),
-    "DiagTensor": ("H",),
-    "DiagonalPreconditioner": ("C", "H"),
-    "DiagonalSolver": ("C", "H"),
-    "Dictionary": ("H",),
-    "IncompressibleTurbulenceModel": ("C", "H"),
-    "Instant": ("H",),
-    "InterfaceCompositionModel": ("C", "H"),
-    "KinematicCloud": ("C", "H"),
-    "LduInterfaceField": ("H",),
-    "LduInterfaceFieldPtrsList": ("H",),
-    "LduMatrix": ("C", "H"),
-    "LduMatrixATmul": ("C",),
-    "LduMatrixOperations": ("C",),
-    "LduMatrixPreconditioner": ("C",),
-    "LduMatrixSmoother": ("C",),
-    "LduMatrixSolver": ("C",),
-    "LduMatrixUpdateMatrixInterfaces": ("C",),
-    "LeastSquaresGrad": ("C", "H"),
-    "LeastSquaresGrads": ("C",),
-    "LeastSquaresVectors": ("C", "H"),
-    "NoPreconditioner": ("C", "H"),
-    "PatchToPatchInterpolation": ("H",),
-    "PhaseLimitStabilization": ("C",),
-    "PrimitivePatch": ("H",),
-    "PrimitivePatchInterpolation": ("H",),
-    "Probes": ("C", "H"),
-    "ReactingCloud": ("C", "H"),
-    "ReactingHeterogeneousCloud": ("C", "H"),
-    "ReactingMultiphaseCloud": ("C", "H"),
-    "SmoothSolver": ("C", "H"),
-    "SolverPerformance": ("C", "H"),
-    "SpatialTensor": ("H",),
-    "SpatialVector": ("H",),
-    "SphericalTensor": ("H",),
-    "SphericalTensor2D": ("H",),
-    "SprayCloud": ("C", "H"),
-    "SymmTensor": ("H",),
-    "SymmTensor2D": ("H",),
-    "Tensor": ("H",),
-    "Tensor2D": ("H",),
-    "ThermoCloud": ("C", "H"),
-    "TurbulenceModel": ("C", "H"),
-    "Vector": ("H",),
-    "Vector2D": ("H",),
-    "fvcDDt": ("C", "H"),
+source_directories = {"applications", "modules", "src"}
+source_suffixes = {
+    ".c", ".cc", ".cpp", ".cxx", ".cver",
+    ".h", ".hh", ".hpp", ".hxx", ".i", ".inl", ".tcc", ".txx",
+    ".l", ".y",
 }
-file_names = {
-    f"{stem}.{extension}": f"Foam{stem}.{extension}"
-    for stem, suffixes in extensions.items()
-    for extension in suffixes
-}
-file_names.update(
-    {
-        "Test-Tensor2D": "Test-FoamTensor2D",
-        "Test-Tensor2D.C": "Test-FoamTensor2D.C",
-    }
-)
 directory_names = {
     name: f"Foam{name}"
     for name in (
@@ -87,42 +24,75 @@ directory_names = {
         "Tensor2D",
     )
 }
-path_names = file_names | directory_names
-
 # This case uses two distinct field names, B and b, at runtime as well.
 unsupported_tutorial = PurePosixPath(
     "tutorials/combustion/PDRFoam/flamePropagationWithObstacles"
 )
 
 
-def rename_path(path):
+def find_file_renames(paths):
+    # Clang searches several lnInclude directories. Case-only spellings can
+    # shadow each other there even when they are in distinct source trees.
+    spellings = defaultdict(set)
+    for path in paths:
+        if (
+            path.parts
+            and path.parts[0] in source_directories
+            and path.suffix.casefold() in source_suffixes
+        ):
+            spellings[path.name.casefold()].add(path.name)
+
+    # The tensor tests also install executables whose names differ only by case.
+    file_names = {
+        "Test-Tensor2D": "Test-FoamTensor2D",
+        "Test-Tensor2D.C": "Test-FoamTensor2D.C",
+    }
+    used_names = set(spellings)
+    for names in spellings.values():
+        for name in sorted(names)[:-1]:
+            renamed = file_names.get(name, f"Foam{name}")
+            if renamed.casefold() in used_names:
+                raise ValueError(f"Cannot rename {name}: {renamed} is already used")
+            used_names.add(renamed.casefold())
+            file_names[name] = renamed
+    return file_names
+
+
+def rename_path(path, path_names):
     return "/".join(path_names.get(part, part) for part in path.split("/"))
 
 
 def unpack(archive_path, destination):
     source_files = []
     with tarfile.open(archive_path, "r:gz") as archive:
+        entries = [
+            (member, PurePosixPath(*PurePosixPath(member.name).parts[1:]))
+            for member in archive.getmembers()
+        ]
+        file_names = find_file_renames(
+            path for member, path in entries if not member.isdir()
+        )
+        path_names = file_names | directory_names
         members = []
         names = set()
-        for member in archive.getmembers():
-            path = PurePosixPath(*PurePosixPath(member.name).parts[1:])
+        for member, path in entries:
             if path == PurePosixPath(".") or path.is_relative_to(unsupported_tutorial):
                 continue
-            name = rename_path(path.as_posix())
+            name = rename_path(path.as_posix(), path_names)
             if name.casefold() in names:
                 raise ValueError(f"Case-insensitive source path collision: {name}")
             names.add(name.casefold())
-            linkname = rename_path(member.linkname)
+            linkname = rename_path(member.linkname, path_names)
             if member.islnk():
                 linkname = linkname.split("/", 1)[1]
             members.append(member.replace(name=name, linkname=linkname))
             if member.isfile():
                 source_files.append(destination / name)
         archive.extractall(destination, members, filter="data")
-    return source_files
+    rewrite_references(source_files, file_names, path_names)
 
 
-def rewrite_references(source_files):
+def rewrite_references(source_files, file_names, path_names):
     files = "|".join(map(re.escape, file_names))
     directories = "|".join(map(re.escape, directory_names))
     # File names can appear by themselves in #include directives. Directory
@@ -146,4 +116,4 @@ def rewrite_references(source_files):
 
 
 if __name__ == "__main__":
-    rewrite_references(unpack(sys.argv[1], Path(sys.argv[2])))
+    unpack(sys.argv[1], Path(sys.argv[2]))
