@@ -97,10 +97,12 @@ def rewrite_references(source_files, file_names, path_names):
     directories = "|".join(map(re.escape, directory_names))
     # File names can appear by themselves in #include directives. Directory
     # names need an adjacent slash, so ordinary C++ identifiers stay intact.
+    # Leave token-pasted fragments such as Cloud.H in basic ## x ## Cloud.H.
     name_character = r"[\w.+-]"
     references = re.compile(
         (
-            rf"(?<!{name_character})(?:{files})(?!{name_character})"
+            rf"##(?:[ \t]|\\\r?\n)*(?:{files})(?!{name_character})"
+            rf"|(?<!{name_character})(?:{files})(?!{name_character})"
             rf"|(?<!{name_character})(?:{directories})(?=/)"
             rf"|(?<=/)(?:{directories})(?!{name_character})"
         ).encode()
@@ -110,7 +112,7 @@ def rewrite_references(source_files, file_names, path_names):
         original = path.read_bytes()
         if b"\0" in original:
             continue
-        updated = references.sub(lambda match: replacements[match[0]], original)
+        updated = references.sub(lambda match: replacements.get(match[0], match[0]), original)
         if updated != original:
             path.write_bytes(updated)
 

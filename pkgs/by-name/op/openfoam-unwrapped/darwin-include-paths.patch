@@ -1,15 +1,18 @@
 diff --git a/wmake/rules/darwin64Clang/general b/wmake/rules/darwin64Clang/general
 --- a/wmake/rules/darwin64Clang/general
 +++ b/wmake/rules/darwin64Clang/general
-@@ -3,6 +3,11 @@ CPP        = cpp -traditional-cpp $(GFLAGS)
+@@ -3,6 +3,14 @@ CPP        = cpp -traditional-cpp $(GFLAGS)
  include $(GENERAL_RULES)/standard
  ## include $(GENERAL_RULES)/Clang/openmp
 -
 +
-+# On case-insensitive filesystems, OpenFOAM headers such as string.H can
-+# shadow system headers. wmkdepend still consumes the original -I options.
-+DARWIN_COMPILER_INCLUDES = -iquote. $(patsubst -I%lnInclude,-iquote%lnInclude,\
-+    $(filter-out -iquote.,$(LIB_HEADER_DIRS)))
++# Keep project include directories in their original order and make them
++# quote-only so OpenFOAM headers cannot shadow system headers.
++# wmkdepend still consumes the original -I options.
++darwin-include = $(if $(filter $(WM_PROJECT_DIR) $(WM_PROJECT_DIR)/% %/lnInclude,$(abspath $(1))),-iquote$(1),-I$(1))
++
++DARWIN_COMPILER_INCLUDES = -iquote. $(foreach flag,$(filter-out -iquote.,$(LIB_HEADER_DIRS)),\
++    $(if $(filter -I%,$(flag)),$(call darwin-include,$(patsubst -I%,%,$(flag))),$(flag)))
 +
  # Darwin-specific
  # ----
