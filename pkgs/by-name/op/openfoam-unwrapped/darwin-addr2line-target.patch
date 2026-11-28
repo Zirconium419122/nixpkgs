@@ -1,0 +1,22 @@
+diff --git a/applications/utilities/miscellaneous/OSspecific/Allwmake b/applications/utilities/miscellaneous/OSspecific/Allwmake
+--- a/applications/utilities/miscellaneous/OSspecific/Allwmake
++++ b/applications/utilities/miscellaneous/OSspecific/Allwmake
+@@ -1,13 +1,14 @@
+ #!/bin/sh
+ cd "${0%/*}" || exit                        # Run from this directory
++. ${WM_PROJECT_DIR:?}/wmake/scripts/AllwmakeParseArguments
+ . ${WM_PROJECT_DIR:?}/wmake/scripts/sysFunctions
+-
++
+ #------------------------------------------------------------------------------
+-
++
+ if isDarwin
+ then
+     echo "==> Darwin-specific utilities"
+-    wmake addr2line
++    wmake "$targetType" addr2line
+ fi
+-
++
+ #------------------------------------------------------------------------------
